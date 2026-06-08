@@ -5,7 +5,9 @@ import { HeroStatus } from '../components/HeroStatus';
 import { BattleLogPanel } from '../components/BattleLogPanel';
 import { GameBoard } from '../components/GameBoard';
 import { GameResultModal } from '../components/GameResultModal';
+import { LevelCheckupModal } from '../components/LevelCheckupModal';
 import { createInitialState, initializeGame, processStep, GameState } from '../utils/gameEngine';
+import { runLevelCheckup, LevelCheckupResult } from '../utils/levelCheckup';
 import { saveLevels, loadLevels, exportToJSON, importFromJSON } from '../utils/storage';
 
 const createEmptyLevel = (): Level => {
@@ -47,6 +49,7 @@ export default function Home() {
   const [gameSpeed, setGameSpeed] = useState(500);
   const [levels, setLevels] = useState<Level[]>([]);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [checkupResult, setCheckupResult] = useState<LevelCheckupResult | null>(null);
 
   useEffect(() => {
     const savedLevels = loadLevels();
@@ -78,6 +81,20 @@ export default function Home() {
     setMode('game');
     setIsAutoPlaying(false);
   }, [level]);
+
+  const handleStartTest = () => {
+    const result = runLevelCheckup(level);
+    setCheckupResult(result);
+  };
+
+  const handleCheckupForceStart = () => {
+    setCheckupResult(null);
+    startGame();
+  };
+
+  const handleCheckupClose = () => {
+    setCheckupResult(null);
+  };
 
   const handleStep = () => {
     if (gameState && gameState.isRunning && !gameState.isFinished) {
@@ -184,7 +201,7 @@ export default function Home() {
                   </select>
                 )}
                 <button
-                  onClick={startGame}
+                  onClick={handleStartTest}
                   className="px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-bold transition-colors"
                 >
                   ▶️ 开始测试
@@ -354,6 +371,14 @@ export default function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      {checkupResult && (
+        <LevelCheckupModal
+          result={checkupResult}
+          onClose={handleCheckupClose}
+          onForceStart={handleCheckupForceStart}
+        />
       )}
     </div>
   );
