@@ -1,4 +1,4 @@
-import { Level } from '../types/game';
+import { Level, Position } from '../types/game';
 import { findPath } from './gameEngine';
 import { DEFAULT_HERO } from '../data/templates';
 
@@ -56,8 +56,7 @@ function checkStartEnd(level: Level): CheckItem[] {
   return items;
 }
 
-function checkPath(level: Level): CheckItem {
-  const path = findPath(level.startPos, level.endPos, level);
+function checkPath(level: Level, path: Position[]): CheckItem {
 
   if (path.length === 0) {
     return {
@@ -85,14 +84,15 @@ function checkPath(level: Level): CheckItem {
   };
 }
 
-function checkMonsterStrength(level: Level): CheckItem {
+function checkMonsterStrength(level: Level, pathSet: Set<string>): CheckItem {
   let totalMonsterHp = 0;
   let totalMonsterAttack = 0;
   let monsterCount = 0;
 
-  for (const row of level.grid) {
-    for (const cell of row) {
-      if (cell.type === 'monster' && cell.monster) {
+  for (let y = 0; y < level.grid.length; y++) {
+    for (let x = 0; x < level.grid[y].length; x++) {
+      const cell = level.grid[y][x];
+      if (cell.type === 'monster' && cell.monster && pathSet.has(`${x},${y}`)) {
         totalMonsterHp += cell.monster.hp;
         totalMonsterAttack += cell.monster.attack;
         monsterCount++;
@@ -154,19 +154,21 @@ function checkMonsterStrength(level: Level): CheckItem {
   };
 }
 
-function checkTrapDensity(level: Level): CheckItem {
+function checkTrapDensity(level: Level, pathSet: Set<string>): CheckItem {
   let trapCount = 0;
   let totalTrapDamage = 0;
-  let floorCount = 0;
+  let pathFloorCount = 0;
 
-  for (const row of level.grid) {
-    for (const cell of row) {
+  for (let y = 0; y < level.grid.length; y++) {
+    for (let x = 0; x < level.grid[y].length; x++) {
+      const cell = level.grid[y][x];
+      if (!pathSet.has(`${x},${y}`)) continue;
       if (cell.type === 'trap' && cell.trap) {
         trapCount++;
         totalTrapDamage += cell.trap.damage;
       }
       if (cell.type === 'floor' || cell.type === 'start' || cell.type === 'end') {
-        floorCount++;
+        pathFloorCount++;
       }
     }
   }
@@ -180,7 +182,7 @@ function checkTrapDensity(level: Level): CheckItem {
     };
   }
 
-  const density = trapCount / Math.max(1, floorCount);
+  const density = trapCount / Math.max(1, pathFloorCount);
 
   if (density > 0.3) {
     return {
@@ -208,7 +210,7 @@ function checkTrapDensity(level: Level): CheckItem {
   };
 }
 
-function checkTreasureCompensation(level: Level): CheckItem {
+function checkTreasureCompensation(level: Level, pathSet: Set<string>): CheckItem {
   let treasureCount = 0;
   let totalGold = 0;
   let hasHealing = false;
@@ -216,8 +218,10 @@ function checkTreasureCompensation(level: Level): CheckItem {
   let estimatedMonsterDamage = 0;
   const heroDefense = DEFAULT_HERO.defense;
 
-  for (const row of level.grid) {
-    for (const cell of row) {
+  for (let y = 0; y < level.grid.length; y++) {
+    for (let x = 0; x < level.grid[y].length; x++) {
+      const cell = level.grid[y][x];
+      if (!pathSet.has(`${x},${y}`)) continue;
       if (cell.type === 'treasure' && cell.treasure) {
         treasureCount++;
         totalGold += cell.treasure.gold;
@@ -294,12 +298,15 @@ function checkTreasureCompensation(level: Level): CheckItem {
 }
 
 export function runLevelCheckup(level: Level): LevelCheckupResult {
+  const path = findPath(level.startPos, level.endPos, level);
+  const pathSet = new Set(path.map(p => `${p.x},${p.y}`));
+
   const items: CheckItem[] = [
     ...checkStartEnd(level),
-    checkPath(level),
-    checkMonsterStrength(level),
-    checkTrapDensity(level),
-    checkTreasureCompensation(level),
+    checkPath(level, path),
+    checkMonsterStrength(level, pathSet),
+    checkTrapDensity(level, pathSet),
+    checkTreasureCompensation(level, pathSet),
   ];
 
   const hasError = items.some(item => item.severity === 'error');
